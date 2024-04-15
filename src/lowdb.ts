@@ -1,4 +1,4 @@
-import lowdb from "lowdb";
+import low from "lowdb";
 import FileSync from "lowdb/adapters/FileSync";
 import { BitcoinPrice } from "./types";
 
@@ -7,7 +7,7 @@ interface DatabaseSchema {
 }
 
 const adapter = new FileSync<DatabaseSchema>("db.json");
-const db = lowdb(adapter);
+const db = low(adapter);
 
 db.defaults({ bitcoinPrices: [] }).write();
 

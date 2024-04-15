@@ -23,28 +23,48 @@ app.get("/price", async (req, res) => {
 
     // Saving current prices to lowdb
     const currentPrices: BitcoinPrice[] = [
-      { currency: "CZK", rate: data.czk, createdAt: new Date().toISOString() },
+      {
+        currency: "CZK",
+        rate: data.czk,
+        createdAt: new Date().toISOString().slice(0, 10),
+      },
+      {
+        currency: "EUR",
+        rate: data.eur,
+        createdAt: new Date().toISOString().slice(0, 10),
+      },
     ];
 
     currentPrices.forEach((price) => {
       db.get("bitcoinPrices").push(price).write();
     });
 
-    const today = new Date().toISOString().slice(0, 10);
+    const currentDate = new Date().toISOString().slice(0, 10);
     const dailyAverageCZK = db
       .get("bitcoinPrices")
-      .filter({ currency: "CZK", createdAt: today })
+      .filter({ currency: "CZK", createdAt: currentDate })
       .map("rate")
+      .uniq()
       .mean()
       .value();
+    console.log(dailyAverageCZK);
 
+    const dailyAverageEUR = db
+      .get("bitcoinPrices")
+      .filter({ currency: "EUR", createdAt: currentDate })
+      .map("rate")
+      .uniq()
+      .mean()
+      .value();
+    console.log(dailyAverageEUR);
     res.json({
       currentBitcoinPrices: {
         CZK: { code: "CZK", rate: data.czk },
         EUR: { code: "EUR", rate: data.eur },
       },
       requestedAt: requestTime,
-      dailyAverageCZK: dailyAverageCZK || 0,
+      dailyAverageCZK: dailyAverageCZK,
+      dailyAverageEUR: dailyAverageEUR,
     });
   } catch (error) {
     res.status(500).send("Error fetching");
