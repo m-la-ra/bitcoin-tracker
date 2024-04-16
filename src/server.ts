@@ -3,7 +3,12 @@ import axios from "axios";
 import dotenv from "dotenv";
 import db from "./lowdb";
 import {
+  calculateAveragePrice,
+  calculateMonthlyAveragePrice,
+} from "./calculateAveragePrice";
+import {
   AverageDailyPrices,
+  AverageMonthlyPrices,
   BitcoinPrice,
   BitcoinPriceResponse,
 } from "./types";
@@ -17,17 +22,6 @@ const BASE_API_URL = "https://api.coingecko.com/api/v3";
 const API_PARAMS =
   "/simple/price?ids=bitcoin&vs_currencies=czk,eur&x_cg_demo_api_key=";
 
-// const endpoints = [
-//   "https://api.coindesk.com/v1/bpi/currentprice/czk.json",
-//   "https://api.coindesk.com/v1/bpi/currentprice/eur.json",
-// ];
-
-// Promise.all(endpoints.map((endpoint) => axios.get(endpoint))).then(
-//   ([{ data: bpi }, { data: time }]) => {
-//     console.log({ bpi, time });
-//   }
-// );
-
 app.get("/price", async (req, res) => {
   try {
     const response = await axios.get<BitcoinPriceResponse>(
@@ -35,62 +29,88 @@ app.get("/price", async (req, res) => {
     );
 
     const data = response.data.bitcoin;
-    const requestTime = response.headers.date;
     const currentDateAndTime = new Date().toISOString();
+    const currentMonth = currentDateAndTime.slice(0, 7);
+    const currentDate = currentDateAndTime.slice(0, 10);
+    const currentTime = currentDateAndTime.slice(11, 19);
 
-    // Saving current prices to lowdb
     const currentPrices: BitcoinPrice[] = [
       {
         currency: "CZK",
         rate: data.czk,
-        date: currentDateAndTime.slice(0, 10),
-        time: currentDateAndTime.slice(11, 19),
+        date: currentDate,
+        time: currentTime,
       },
       {
         currency: "EUR",
         rate: data.eur,
-        date: currentDateAndTime.slice(0, 10),
-        time: currentDateAndTime.slice(11, 19),
+        date: currentDate,
+        time: currentTime,
       },
     ];
 
+    const averageDailyPrices: AverageDailyPrices = {
+      averageDailyPriceCZK: calculateAveragePrice("CZK", currentDate),
+      averageDailyPriceEUR: calculateAveragePrice("EUR", currentDate),
+      date: currentDate,
+      month: currentMonth,
+    };
+
+    const averageMonthlyPrices: AverageMonthlyPrices = {
+      averageMonthlyPriceCZK: calculateMonthlyAveragePrice(
+        "averageDailyPriceCZK",
+        currentMonth
+      ),
+      averageMonthlyPriceEUR: calculateMonthlyAveragePrice(
+        "averageDailyPriceEUR",
+        currentMonth
+      ),
+      month: currentMonth,
+    };
+
+    // Saving current prices to lowdb
     currentPrices.forEach((price) => {
       db.get("bitcoinPrices").push(price).write();
     });
 
-    const currentDate = new Date().toISOString().slice(0, 10);
+    // Check if today's date exists in DB and then write new entry or update existing entry
+    const averagePriceDbValues = db.get("averageDailyPrices").value();
+    const dateEntryExists = averagePriceDbValues.some(
+      (item) => item.date === currentDate
+    );
 
-    const calculateAveragePrice = (currency: string, date: string) => {
-      return db
-        .get("bitcoinPrices")
-        .filter({ currency: currency, date: date })
-        .map("rate")
-        .uniq()
-        .mean()
-        .value();
-    };
-
-    const averageDailyPrices: AverageDailyPrices = {
-      averagePriceCZK: calculateAveragePrice("CZK", currentDate),
-      averagePriceEUR: calculateAveragePrice("EUR", currentDate),
-      date: currentDate,
-    };
-
-    const avPriceDb = db.get("averageDailyPrices").value();
-    const exists = avPriceDb.some((item) => item.date === currentDate);
-
-    if (exists) {
+    if (!dateEntryExists) {
+      console.log("does not exist, writing entry to db");
+      db.get("averageDailyPrices").push(averageDailyPrices).write();
+    } else {
       console.log("exists");
       db.get("averageDailyPrices")
         .find({ date: currentDate })
         .assign({
-          averagePriceCZK: averageDailyPrices.averagePriceCZK,
-          averagePriceEUR: averageDailyPrices.averagePriceEUR,
+          averageDailyPriceCZK: averageDailyPrices.averageDailyPriceCZK,
+          averageDailyPriceEUR: averageDailyPrices.averageDailyPriceEUR,
         })
         .write();
+    }
+
+    // Check if this month exists in DB and then write new entry or update existing entry
+    const averageMonthlyDbValues = db.get("averageMonthlyPrices").value();
+    const monthlyEntryExists = averageMonthlyDbValues.some(
+      (item) => item.month === currentMonth
+    );
+
+    if (dateEntryExists && !monthlyEntryExists) {
+      console.log("monthly entry does not exist, writing entry to db");
+      db.get("averageMonthlyPrices").push(averageMonthlyPrices).write();
     } else {
-      console.log("does not exist, writing entry to db");
-      db.get("averageDailyPrices").push(averageDailyPrices).write();
+      console.log("monthly entry exists");
+      db.get("averageMonthlyPrices")
+        .find({ month: currentMonth })
+        .assign({
+          averageMonthlyPriceCZK: averageMonthlyPrices.averageMonthlyPriceCZK,
+          averageMonthlyPriceEUR: averageMonthlyPrices.averageMonthlyPriceEUR,
+        })
+        .write();
     }
 
     res.json({
@@ -99,7 +119,12 @@ app.get("/price", async (req, res) => {
         EUR: { code: "EUR", rate: data.eur },
       },
       requestedAt: currentDateAndTime,
-      averageDailyPrices: db.get("averageDailyPrices"),
+      averageDailyPrices: dateEntryExists
+        ? db.get("averageDailyPrices")
+        : "Awaiting price calculation",
+      averageMonthlyPrices: monthlyEntryExists
+        ? db.get("averageMonthlyPrices")
+        : "Awaiting price calculation",
     });
   } catch (error) {
     res.status(500).send("Error fetching");
