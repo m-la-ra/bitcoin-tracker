@@ -2,7 +2,11 @@ import express from "express";
 import axios from "axios";
 import dotenv from "dotenv";
 import db from "./lowdb";
-import { BitcoinPrice, BitcoinPriceResponse } from "./types";
+import {
+  AverageDailyPrices,
+  BitcoinPrice,
+  BitcoinPriceResponse,
+} from "./types";
 
 const port = 3000;
 const app = express();
@@ -32,18 +36,21 @@ app.get("/price", async (req, res) => {
 
     const data = response.data.bitcoin;
     const requestTime = response.headers.date;
+    const currentDateAndTime = new Date().toISOString();
 
     // Saving current prices to lowdb
     const currentPrices: BitcoinPrice[] = [
       {
         currency: "CZK",
         rate: data.czk,
-        createdAt: new Date().toISOString().slice(0, 10),
+        date: currentDateAndTime.slice(0, 10),
+        time: currentDateAndTime.slice(11, 19),
       },
       {
         currency: "EUR",
         rate: data.eur,
-        createdAt: new Date().toISOString().slice(0, 10),
+        date: currentDateAndTime.slice(0, 10),
+        time: currentDateAndTime.slice(11, 19),
       },
     ];
 
@@ -52,70 +59,47 @@ app.get("/price", async (req, res) => {
     });
 
     const currentDate = new Date().toISOString().slice(0, 10);
-    const currentMonth = currentDate.slice(0, 7);
-    console.log(currentMonth);
-    console.log(currentDate);
 
-    const calculateAveragePrice = (currency: string, createdAt: string) => {
+    const calculateAveragePrice = (currency: string, date: string) => {
       return db
         .get("bitcoinPrices")
-        .filter({ currency: currency, createdAt: createdAt })
+        .filter({ currency: currency, date: date })
         .map("rate")
         .uniq()
         .mean()
         .value();
     };
 
-    const dailyAverageCZK = calculateAveragePrice("CZK", currentDate);
-    const dailyAverageEUR = calculateAveragePrice("EUR", currentDate);
-    // const dailyAverageCZK = db
-    //   .get("bitcoinPrices")
-    //   .filter({ currency: "CZK", createdAt: currentDate })
-    //   .map("rate")
-    //   .uniq()
-    //   .mean()
-    //   .value();
+    const averageDailyPrices: AverageDailyPrices = {
+      averagePriceCZK: calculateAveragePrice("CZK", currentDate),
+      averagePriceEUR: calculateAveragePrice("EUR", currentDate),
+      date: currentDate,
+    };
 
-    console.log(dailyAverageCZK);
+    const avPriceDb = db.get("averageDailyPrices").value();
+    const exists = avPriceDb.some((item) => item.date === currentDate);
 
-    // const dailyAverageEUR = db
-    //   .get("bitcoinPrices")
-    //   .filter({ currency: "EUR", createdAt: currentDate })
-    //   .map("rate")
-    //   .uniq()
-    //   .mean()
-    //   .value();
-
-    console.log(dailyAverageEUR);
-
-    // const MonthlyAverageCZK = db
-    //   .get("bitcoinPrices")
-    //   .filter({ currency: "CZK", createdAt: currentMonth })
-    //   .map("rate")
-    //   .uniq()
-    //   .mean()
-    //   .value();
-
-    // console.log(MonthlyAverageCZK);
-
-    // const MonthlyAverageEUR = db
-    //   .get("bitcoinPrices")
-    //   .filter({ currency: "EUR", createdAt: currentMonth })
-    //   .map("rate")
-    //   .uniq()
-    //   .mean()
-    //   .value();
-
-    // console.log(MonthlyAverageEUR);
+    if (exists) {
+      console.log("exists");
+      db.get("averageDailyPrices")
+        .find({ date: currentDate })
+        .assign({
+          averagePriceCZK: averageDailyPrices.averagePriceCZK,
+          averagePriceEUR: averageDailyPrices.averagePriceEUR,
+        })
+        .write();
+    } else {
+      console.log("does not exist, writing entry to db");
+      db.get("averageDailyPrices").push(averageDailyPrices).write();
+    }
 
     res.json({
       currentBitcoinPrices: {
         CZK: { code: "CZK", rate: data.czk },
         EUR: { code: "EUR", rate: data.eur },
       },
-      requestedAt: requestTime,
-      dailyAverageCZK: dailyAverageCZK.toFixed(2),
-      dailyAverageEUR: dailyAverageEUR.toFixed(2),
+      requestedAt: currentDateAndTime,
+      averageDailyPrices: db.get("averageDailyPrices"),
     });
   } catch (error) {
     res.status(500).send("Error fetching");

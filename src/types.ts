@@ -1,7 +1,14 @@
 export interface BitcoinPrice {
   currency: string;
   rate: number;
-  createdAt: string;
+  date: string;
+  time: string;
+}
+
+export interface AverageDailyPrices {
+  averagePriceCZK: number;
+  averagePriceEUR: number;
+  date: string;
 }
 
 export interface BitcoinPriceResponse {
