@@ -9,7 +9,7 @@ export interface AverageDailyPrices {
   averageDailyPriceCZK: number | null;
   averageDailyPriceEUR: number | null;
   month: string;
-  date: string;
+  day: string;
 }
 
 export interface AverageMonthlyPrices {

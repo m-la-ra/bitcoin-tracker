@@ -22,15 +22,17 @@ const BASE_API_URL = "https://api.coingecko.com/api/v3";
 const API_PARAMS =
   "/simple/price?ids=bitcoin&vs_currencies=czk,eur&x_cg_demo_api_key=";
 
-app.get("/price", async (req, res) => {
+const fetch = async () => {
   try {
     const response = await axios.get<BitcoinPriceResponse>(
-      BASE_API_URL + API_PARAMS + API_KEY
+      BASE_API_URL + API_PARAMS + API_KEY,
+      { headers: { "Content-Type": "application/json" } }
     );
 
     const data = response.data.bitcoin;
     const currentDateAndTime = new Date().toISOString();
     const currentMonth = currentDateAndTime.slice(0, 7);
+    const currentDay = currentDateAndTime.slice(8, 10);
     const currentDate = currentDateAndTime.slice(0, 10);
     const currentTime = currentDateAndTime.slice(11, 19);
 
@@ -52,7 +54,7 @@ app.get("/price", async (req, res) => {
     const averageDailyPrices: AverageDailyPrices = {
       averageDailyPriceCZK: calculateAveragePrice("CZK", currentDate),
       averageDailyPriceEUR: calculateAveragePrice("EUR", currentDate),
-      date: currentDate,
+      day: currentDay,
       month: currentMonth,
     };
 
@@ -76,16 +78,14 @@ app.get("/price", async (req, res) => {
     // Check if today's date exists in DB and then write new entry or update existing entry
     const averagePriceDbValues = db.get("averageDailyPrices").value();
     const dateEntryExists = averagePriceDbValues.some(
-      (item) => item.date === currentDate
+      (item) => item.day === currentDay
     );
 
     if (!dateEntryExists) {
-      console.log("does not exist, writing entry to db");
       db.get("averageDailyPrices").push(averageDailyPrices).write();
     } else {
-      console.log("exists");
       db.get("averageDailyPrices")
-        .find({ date: currentDate })
+        .find({ day: currentDay })
         .assign({
           averageDailyPriceCZK: averageDailyPrices.averageDailyPriceCZK,
           averageDailyPriceEUR: averageDailyPrices.averageDailyPriceEUR,
@@ -100,10 +100,8 @@ app.get("/price", async (req, res) => {
     );
 
     if (dateEntryExists && !monthlyEntryExists) {
-      console.log("monthly entry does not exist, writing entry to db");
       db.get("averageMonthlyPrices").push(averageMonthlyPrices).write();
     } else {
-      console.log("monthly entry exists");
       db.get("averageMonthlyPrices")
         .find({ month: currentMonth })
         .assign({
@@ -113,24 +111,37 @@ app.get("/price", async (req, res) => {
         .write();
     }
 
-    res.json({
+    return {
       currentBitcoinPrices: {
         CZK: { code: "CZK", rate: data.czk },
         EUR: { code: "EUR", rate: data.eur },
       },
       requestedAt: currentDateAndTime,
       averageDailyPrices: dateEntryExists
-        ? db.get("averageDailyPrices")
+        ? db.get("averageDailyPrices").value()
         : "Awaiting price calculation",
       averageMonthlyPrices: monthlyEntryExists
-        ? db.get("averageMonthlyPrices")
+        ? db.get("averageMonthlyPrices").value()
         : "Awaiting price calculation",
-    });
+    };
   } catch (error) {
-    res.status(500).send("Error fetching");
+    console.error("Error fetching:", error);
+    throw error;
+  }
+};
+
+app.get("/price", async (req, res) => {
+  try {
+    const responseData = await fetch();
+    res.json(responseData);
+  } catch (error) {
+    res.status(500).send("Error fetching data");
   }
 });
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+  // setInterval(async function () {
+  //   await fetch();
+  // }, 5000);
 });
