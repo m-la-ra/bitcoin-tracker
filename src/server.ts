@@ -141,7 +141,11 @@ app.get("/price", async (req, res) => {
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
-  // setInterval(async function () {
-  //   await fetch();
-  // }, 5000);
+  setInterval(async () => {
+    try {
+      await fetch();
+    } catch (error) {
+      console.error("Error fetching:", error);
+    }
+  }, 90000);
 });
