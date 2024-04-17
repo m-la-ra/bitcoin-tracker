@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bitcoin-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bitcoin-tracker
+  template:
+    metadata:
+      labels:
+        app: bitcoin-tracker
+    spec:
+      containers:
+        - name: bitcoin-tracker-container
+          image: bitcoin-tracker:latest
+          ports:
+            - containerPort: 3000
