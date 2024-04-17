@@ -1,4 +1,5 @@
 import db from "./lowdb";
+const _ = require("lodash");
 
 export const calculateAveragePrice = (currency: string, date: string) => {
   return db
@@ -10,15 +11,19 @@ export const calculateAveragePrice = (currency: string, date: string) => {
     .value();
 };
 
-export const calculateMonthlyAveragePrice = (
-  currency: string,
-  month: string
-) => {
-  return db
-    .get("averageDailyPrices")
-    .filter({ month: month })
-    .map(currency)
-    .uniq()
-    .mean()
-    .value();
+export const calculateMonthlyAveragePrice = (currency: string) => {
+  const dailyValues = db.get("averageDailyPrices").value();
+
+  const monthlyValues = _.groupBy(dailyValues, (dailyValue: any) => {
+    return dailyValue.month;
+  });
+
+  const monthlyAverages = _.mapValues(monthlyValues, (dailyValues: any) => {
+    const sum = _.sumBy(dailyValues, currency);
+    const monthlyAveragePrice = sum / dailyValues.length;
+    return {
+      monthlyAveragePrice,
+    };
+  });
+  return monthlyAverages;
 };

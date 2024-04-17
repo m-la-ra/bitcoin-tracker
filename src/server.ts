@@ -52,22 +52,15 @@ const fetch = async () => {
     ];
 
     const averageDailyPrices: AverageDailyPrices = {
-      averageDailyPriceCZK: calculateAveragePrice("CZK", currentDate),
-      averageDailyPriceEUR: calculateAveragePrice("EUR", currentDate),
+      CZK: calculateAveragePrice("CZK", currentDate),
+      EUR: calculateAveragePrice("EUR", currentDate),
       day: currentDay,
       month: currentMonth,
     };
-
     const averageMonthlyPrices: AverageMonthlyPrices = {
-      averageMonthlyPriceCZK: calculateMonthlyAveragePrice(
-        "averageDailyPriceCZK",
-        currentMonth
-      ),
-      averageMonthlyPriceEUR: calculateMonthlyAveragePrice(
-        "averageDailyPriceEUR",
-        currentMonth
-      ),
-      month: currentMonth,
+      CZK: calculateMonthlyAveragePrice("CZK"),
+      EUR: calculateMonthlyAveragePrice("EUR"),
+      id: "monthlyPrices",
     };
 
     // Saving current prices to lowdb
@@ -75,9 +68,11 @@ const fetch = async () => {
       db.get("bitcoinPrices").push(price).write();
     });
 
+    const averageDailyPriceData = db.get("averageDailyPrices").value();
+    const averageMonthlyPriceData = db.get("averageMonthlyPrices").value();
+
     // Check if today's date exists in DB and then write new entry or update existing entry
-    const averagePriceDbValues = db.get("averageDailyPrices").value();
-    const dateEntryExists = averagePriceDbValues.some(
+    const dateEntryExists = averageDailyPriceData.some(
       (item) => item.day === currentDay
     );
 
@@ -87,28 +82,25 @@ const fetch = async () => {
       db.get("averageDailyPrices")
         .find({ day: currentDay })
         .assign({
-          averageDailyPriceCZK: averageDailyPrices.averageDailyPriceCZK,
-          averageDailyPriceEUR: averageDailyPrices.averageDailyPriceEUR,
+          CZK: averageDailyPrices.CZK,
+          EUR: averageDailyPrices.EUR,
         })
         .write();
     }
 
     // Check if this month exists in DB and then write new entry or update existing entry
-    const averageMonthlyDbValues = db.get("averageMonthlyPrices").value();
-    const monthlyEntryExists = averageMonthlyDbValues.some(
-      (item) => item.month === currentMonth
-    );
+    const monthlyEntryExists = averageMonthlyPriceData.some((item) => item.id);
 
-    if (dateEntryExists && !monthlyEntryExists) {
-      db.get("averageMonthlyPrices").push(averageMonthlyPrices).write();
-    } else {
+    if (monthlyEntryExists) {
       db.get("averageMonthlyPrices")
-        .find({ month: currentMonth })
+        .find({ id: "monthlyPrices" })
         .assign({
-          averageMonthlyPriceCZK: averageMonthlyPrices.averageMonthlyPriceCZK,
-          averageMonthlyPriceEUR: averageMonthlyPrices.averageMonthlyPriceEUR,
+          CZK: averageMonthlyPrices.CZK,
+          EUR: averageMonthlyPrices.EUR,
         })
         .write();
+    } else {
+      db.get("averageMonthlyPrices").push(averageMonthlyPrices).write();
     }
 
     return {
@@ -117,12 +109,8 @@ const fetch = async () => {
         EUR: { code: "EUR", rate: data.eur },
       },
       requestedAt: currentDateAndTime,
-      averageDailyPrices: dateEntryExists
-        ? db.get("averageDailyPrices").value()
-        : "Awaiting price calculation",
-      averageMonthlyPrices: monthlyEntryExists
-        ? db.get("averageMonthlyPrices").value()
-        : "Awaiting price calculation",
+      averageDailyPrice: averageDailyPriceData,
+      averageMonthlyPrice: averageMonthlyPriceData,
     };
   } catch (error) {
     console.error("Error fetching:", error);
@@ -139,13 +127,14 @@ app.get("/price", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`Server running on port ${port}`);
+  await fetch();
   setInterval(async () => {
     try {
       await fetch();
     } catch (error) {
       console.error("Error fetching:", error);
     }
-  }, 90000);
+  }, 120000);
 });

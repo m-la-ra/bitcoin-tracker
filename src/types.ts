@@ -6,16 +6,16 @@ export interface BitcoinPrice {
 }
 
 export interface AverageDailyPrices {
-  averageDailyPriceCZK: number | null;
-  averageDailyPriceEUR: number | null;
+  CZK: number | null;
+  EUR: number | null;
   month: string;
   day: string;
 }
 
 export interface AverageMonthlyPrices {
-  averageMonthlyPriceCZK: number | null;
-  averageMonthlyPriceEUR: number | null;
-  month: string;
+  id: string;
+  CZK: number | null;
+  EUR: number | null;
 }
 
 export interface BitcoinPriceResponse {
