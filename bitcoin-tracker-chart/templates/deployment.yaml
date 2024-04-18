@@ -24,4 +24,4 @@ spec:
             - configMapRef:
                 name: {{ .Values.configmap.name }}
       imagePullSecrets: 
-        -name: registrykey
+        - name: registrykey
