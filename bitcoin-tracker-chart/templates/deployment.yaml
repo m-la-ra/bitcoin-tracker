@@ -15,7 +15,6 @@ spec:
       labels:
         app: {{ .Values.appName }}
     spec:
-      imagePullSecrets: registrykey
       containers:
         - name: bitcoin-tracker
           image: "{{ .Values.image.name }}:{{ .Values.image.tag }}"
@@ -24,3 +23,5 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ .Values.configmap.name }}
+      imagePullSecrets: 
+        -name: registrykey
