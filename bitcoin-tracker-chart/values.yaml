@@ -1,0 +1,10 @@
+appName: bitcoin-tracker
+
+namespace: bitcoin-tracker
+
+configmap: 
+  name: bitcoin-tracker-config-v1
+
+image:
+  name: mrahm1444/bitcoin-tracker
+  tag: latest

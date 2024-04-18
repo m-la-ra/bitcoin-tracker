@@ -22,6 +22,20 @@ const BASE_API_URL = "https://api.coingecko.com/api/v3";
 const API_PARAMS =
   "/simple/price?ids=bitcoin&vs_currencies=czk,eur&x_cg_demo_api_key=";
 
+function isAuth(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  const auth = req.headers.authorization;
+  if (auth === process.env.AUTH_KEY) {
+    next();
+  } else {
+    res.status(401);
+    res.send("Access forbidden");
+  }
+}
+
 const fetch = async () => {
   try {
     const response = await axios.get<BitcoinPriceResponse>(
@@ -31,8 +45,6 @@ const fetch = async () => {
 
     const data = response.data.bitcoin;
     const currentDateAndTime = new Date().toISOString();
-    const currentMonth = currentDateAndTime.slice(0, 7);
-    const currentDay = currentDateAndTime.slice(8, 10);
     const currentDate = currentDateAndTime.slice(0, 10);
     const currentTime = currentDateAndTime.slice(11, 19);
 
@@ -54,8 +66,7 @@ const fetch = async () => {
     const averageDailyPrices: AverageDailyPrices = {
       CZK: calculateAveragePrice("CZK", currentDate),
       EUR: calculateAveragePrice("EUR", currentDate),
-      day: currentDay,
-      month: currentMonth,
+      date: currentDate,
     };
     const averageMonthlyPrices: AverageMonthlyPrices = {
       CZK: calculateMonthlyAveragePrice("CZK"),
@@ -73,14 +84,14 @@ const fetch = async () => {
 
     // Check if today's date exists in DB and then write new entry or update existing entry
     const dateEntryExists = averageDailyPriceData.some(
-      (item) => item.day === currentDay
+      (item) => item.date === currentDate
     );
 
     if (!dateEntryExists) {
       db.get("averageDailyPrices").push(averageDailyPrices).write();
     } else {
       db.get("averageDailyPrices")
-        .find({ day: currentDay })
+        .find({ date: currentDate })
         .assign({
           CZK: averageDailyPrices.CZK,
           EUR: averageDailyPrices.EUR,
@@ -118,7 +129,7 @@ const fetch = async () => {
   }
 };
 
-app.get("/price", async (req, res) => {
+app.get("/price", isAuth, async (req, res) => {
   try {
     const responseData = await fetch();
     res.json(responseData);

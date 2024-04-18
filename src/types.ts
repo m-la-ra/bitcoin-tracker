@@ -8,8 +8,7 @@ export interface BitcoinPrice {
 export interface AverageDailyPrices {
   CZK: number | null;
   EUR: number | null;
-  month: string;
-  day: string;
+  date: string;
 }
 
 export interface AverageMonthlyPrices {

@@ -15,7 +15,7 @@ export const calculateMonthlyAveragePrice = (currency: string) => {
   const dailyValues = db.get("averageDailyPrices").value();
 
   const monthlyValues = _.groupBy(dailyValues, (dailyValue: any) => {
-    return dailyValue.month;
+    return dailyValue.date.slice(0, 7);
   });
 
   const monthlyAverages = _.mapValues(monthlyValues, (dailyValues: any) => {
